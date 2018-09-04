@@ -29,6 +29,8 @@ class ViewController: UIViewController {
     var articleArray: [String] = []
     var mycheckFriend = [Any]()
     var mycheckFriendDic = [String:Bool]()
+    var personcheckFriendDic = [String:Bool]()
+    var myFriend = ""
     var myJSONData: Data?
 
     
@@ -42,6 +44,17 @@ class ViewController: UIViewController {
         }
         
         ref = Database.database().reference()
+        
+        friendRequest()
+
+    }
+    
+    func friendRequest() {
+        ref.child("user/\(authorId)/checkFriend").observe(.childAdded) { (snapshot) in
+                print(snapshot.key)
+                self.friendRequestAlert(message: "\(snapshot.key) 要加您為好友")
+            self.myFriend = (snapshot.key as? String)!
+            }
     }
     
     @IBAction func showFriend(_ sender: Any) {
@@ -50,7 +63,9 @@ class ViewController: UIViewController {
             .observeSingleEvent(of: .value, with: { (snapshot) in
                 
                 guard let value = snapshot.value as? [String: Any] else { return }
-                print("myFriend: \(value["friend"] as! String)")
+                print(value)
+                guard let dictionary = value["friend"] as? [String: Bool] else { return }
+                print("myFriend: \(dictionary)")
 
             }) { (error) in
                 print(error.localizedDescription)
@@ -59,26 +74,12 @@ class ViewController: UIViewController {
     
     
     @IBAction func addFriend(_ sender: Any) {
-        
+
         if addFriendTxt.text == "" {
             showAlertWith(message: "Please enter the UserID")
             
         } else {
             getMyCheckFriend()
-            getPersonCheckFriend()
-            ref.child("user/\(addFriendTxt.text!)/checkFriend").setValue([
-                "\(authorId)": false,]) {
-                    
-                    (error:Error?, ref:DatabaseReference) in
-                    if let error = error {
-                        self.showAlertWith(message: "Data could not be saved")
-                        print("Data could not be saved: \(error).")
-                    } else {
-                        self.showAlertWith(title: "Successee", message: "Successfully send!")
-                        print("successfully!")
-                        self.selfAddFriend()
-                    }
-            }
         }
     }
     
@@ -95,10 +96,30 @@ class ViewController: UIViewController {
                 
                 self.mycheckFriendDic["\(self.addFriendTxt.text!)"] = true
                     print(self.mycheckFriendDic)
-                
+                self.selfAddFriend()
+
             }) { (error) in
                 print(error.localizedDescription)
         }
+        
+        ref.child("user/\(addFriendTxt.text!)")
+            .queryOrdered(byChild: "checkFriend")
+            .observeSingleEvent(of: .value, with: { (snapshot) in
+                
+                guard let value = snapshot.value as? [String: Any] else { return }
+                guard let dictionary = value["checkFriend"] as? [String: Bool] else { return }
+                
+                print("personFriend \(dictionary)")
+                self.personcheckFriendDic = dictionary
+                
+                self.personcheckFriendDic["\(self.authorId)"] = false
+                print(self.personcheckFriendDic)
+                self.persinAddFriend()
+
+            }) { (error) in
+                print(error.localizedDescription)
+        }
+        
     }
     
     func getPersonCheckFriend() {
@@ -109,12 +130,31 @@ class ViewController: UIViewController {
                 guard let value = snapshot.value as? [String: Any] else { return }
                 guard let dictionary = value["checkFriend"] as? [String: Bool] else { return }
                 
-                print("\(self.addFriendTxt.text!)Friend: \(dictionary)")
+                print("personFriend \(dictionary)")
+                self.personcheckFriendDic = dictionary
+                
+                self.personcheckFriendDic["\(self.authorId)"] = false
+                print(self.personcheckFriendDic)
                 
             }) { (error) in
                 print(error.localizedDescription)
         }
     }
+    
+    func persinAddFriend() {
+        
+        print(personcheckFriendDic)
+        ref.child("user/\(addFriendTxt.text!)/checkFriend").setValue(personcheckFriendDic) {
+            
+            (error:Error?, ref:DatabaseReference) in
+            if let error = error {
+                print("Data could not be saved: \(error).")
+            } else {
+                print("Self successfully!")
+            }
+        }
+    }
+    
     
     func selfAddFriend() {
         
@@ -236,6 +276,29 @@ class ViewController: UIViewController {
         
         let okAction = UIAlertAction(title: "OK", style: .cancel, handler: nil)
         alertController.addAction(okAction)
+        
+        present(alertController, animated: true, completion: nil)
+    }
+    
+    func friendRequestAlert(title: String = "Friend Request", message: String) {
+        let alertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        
+        let okAction = UIAlertAction(title: "OK", style: .default) { (action) in
+            
+            self.ref.child("user/\(self.authorId)/friend/\(self.myFriend)").setValue(true) {
+                
+                (error:Error?, ref:DatabaseReference) in
+                if let error = error {
+                    print("Data could not be saved: \(error).")
+                } else {
+                    print("Self successfully!")
+                }
+            }
+            
+        }
+        let cancle = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
+        alertController.addAction(okAction)
+        alertController.addAction(cancle)
         
         present(alertController, animated: true, completion: nil)
     }
